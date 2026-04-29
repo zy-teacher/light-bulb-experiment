@@ -207,7 +207,7 @@ app.post('/api/chat', async (req, res) => {
         // ==========================================
         // ⚠️ 请在这里填入你申请的 API Key
         // ==========================================
-        const API_KEY = 'sk-820235bbddfa4fb4a690bc653deab4f9'; // 替换为你的 DeepSeek 或 豆包 API Key
+        const API_KEY = '***'; // 替换为你的 DeepSeek 或 豆包 API Key
         
         // DeepSeek 配置：
         const API_URL = 'https://api.deepseek.com/chat/completions';
