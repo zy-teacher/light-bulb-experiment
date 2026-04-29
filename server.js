@@ -207,17 +207,13 @@ app.post('/api/chat', async (req, res) => {
         // ==========================================
         // ⚠️ 请在这里填入你申请的 API Key
         // ==========================================
-        const API_KEY = '***'; // 替换为你的 DeepSeek 或 豆包 API Key
+        const API_KEY = 'sk-xxxxxxxxxxxx'; // 替换为你的 DeepSeek  API Key
         
         // DeepSeek 配置：
         const API_URL = 'https://api.deepseek.com/chat/completions';
         const MODEL_NAME = 'deepseek-chat';
 
-        /*
-        // 豆包 (Volcengine) 配置示例 (如需使用豆包，取消这里的注释并注释掉上面的DeepSeek配置)：
-        // const API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-        // const MODEL_NAME = 'ep-YOUR_ENDPOINT_ID'; // 豆包需要填入你的接入点 ID (Endpoint ID)
-        */
+        
 
         // 向 AI 发送请求
         const aiResponse = await fetch(API_URL, {
