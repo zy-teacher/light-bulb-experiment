@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验报告单管理后台</title>
+    <style>
+        /* 【新增】使用CSS变量控制预览卡片的宽度，方便实现缩放功能 */
+        :root {
+            --preview-width: 25%; /* 默认一行展示4份 (100% / 4) */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif; }
+        body { background: #f0f8ff; padding: 20px; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #1890ff; }
+        .header h1 { color: #0056b3; }
+        
+        .search-box { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .search-box input { padding: 8px 12px; border: 1px solid #1890ff; border-radius: 5px; width: 160px; font-size: 14px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-primary { background: #1890ff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn:hover { opacity: 0.9; }
+        .btn-sm { padding: 4px 8px; font-size: 12px; }
+
+        .container { display: flex; gap: 20px; height: calc(100vh - 120px); }
+
+        .report-list { width: 300px; background: white; border: 2px solid #1890ff; border-radius: 10px; padding: 10px; overflow-y: auto; }
+        .report-item { padding: 10px; border: 1px solid #e6f7ff; border-radius: 5px; margin-bottom: 8px; cursor: pointer; transition: 0.2s; position: relative; }
+        .report-item:hover { background: #e6f7ff; }
+        .report-item.active { background: #1890ff; color: white; }
+        .report-item .info { font-size: 12px; color: #666; margin-top: 5px; }
+        .report-item.active .info { color: #fff; }
+        
+        /* 列表中的点赞标签 */
+        .like-badge { position: absolute; top: 10px; right: 10px; font-size: 12px; color: #ff4d4f; font-weight: bold; }
+        .report-item.active .like-badge { color: #ffdf99; }
+
+        .preview-area { flex: 1; background: white; border: 2px solid #1890ff; border-radius: 10px; padding: 10px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+        
+        /* 【改动】使用变量，默认一行4个 */
+        .report-preview { 
+            width: calc(var(--preview-width) - 10px); 
+            min-width: 150px; 
+            border: 1px solid #e6f7ff; 
+            border-radius: 8px; 
+            padding: 10px; 
+            display: flex;
+            flex-direction: column;
+            background: #fafafa;
+        }
+        .report-preview h3 { color: #0056b3; margin-bottom: 10px; font-size: 14px; display: flex; justify-content: space-between; align-items: center;}
+        .report-preview img { width: 100%; border-radius: 5px; border: 1px solid #ddd; background: white; }
+        
+        .empty-tip { width: 100%; text-align: center; color: #666; font-size: 18px; padding: 50px 0; }
+        
+        /* 卡片底部操作栏 */
+        .preview-footer { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: space-between; align-items: center;}
+        .teacher-comment { margin-top: 8px; padding: 8px; background: #e6f7ff; border-left: 3px solid #1890ff; font-size: 13px; color: #333; border-radius: 3px; word-break: break-all;}
+
+        /* ======== 教师点评弹窗样式 ======== */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 400px; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-content h3 { color: #0056b3; margin-bottom: 15px; }
+        .modal-content textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; resize: none; font-size: 14px; margin-bottom: 15px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>点亮小灯泡实验管理后台</h1>
+        <div class="search-box">
+            <button class="btn btn-warning" onclick="zoomOut()" title="缩小，一行显示更多">🔍 缩小</button>
+            <button class="btn btn-warning" onclick="zoomIn()" title="放大，一行显示更少">🔍 放大</button>
+            <span style="color:#ccc">|</span>
+            <input type="text" id="searchInput" placeholder="输入学号或姓名搜索">
+            <button class="btn btn-primary" onclick="searchReport()">搜索</button>
+            <button class="btn btn-success" onclick="loadAllReports()">刷新列表</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="report-list" id="reportList">
+            <h3 style="color:#28a745; margin-bottom: 10px; font-size: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;">✅ 成功点亮</h3>
+            <div id="successList" style="margin-bottom: 20px;"></div>
+
+            <h3 style="color:#dc3545; margin-bottom: 10px; font-size: 15px; border-bottom: 1px solid #eee; padding-bottom: 5px;">❌ 未点亮</h3>
+            <div id="failList"></div>
+        </div>
+
+        <div class="preview-area" id="previewArea">
+            <div class="empty-tip">请选择左侧报告单查看，可多选对比（当前默认每行展示 4 份）</div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="commentModal">
+        <div class="modal-content">
+            <h3>📝 教师点评</h3>
+            <textarea id="commentText" placeholder="请输入对该同学实验的评价..."></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-danger" onclick="closeCommentModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitComment()">保存点评</button>
+            </div>
+            <input type="hidden" id="currentCommentReportId">
+        </div>
+    </div>
+
+    <script>
+    let openedReportIds = new Set();
+    let currentZoom = 25; // 初始宽度比例 25% (一行4个)
+
+    window.onload = loadAllReports;
+
+    // ======== 缩放控制 ========
+    function zoomIn() {
+        if (currentZoom >= 100) return; // 最大一行1个
+        currentZoom += 8.33; // 逐渐放大
+        document.documentElement.style.setProperty('--preview-width', currentZoom + '%');
+    }
+
+    function zoomOut() {
+        if (currentZoom <= 15) return; // 最小限制
+        currentZoom -= 8.33; // 逐渐缩小
+        document.documentElement.style.setProperty('--preview-width', currentZoom + '%');
+    }
+
+    // ======== 加载与搜索 ========
+    async function loadAllReports() {
+        try {
+            const response = await fetch('/api/get-all-reports');
+            const result = await response.json();
+            if (result.success) renderReportList(result.data);
+            else alert('加载失败：' + result.message);
+        } catch (error) {
+            alert('加载失败，请检查服务器是否运行！');
+        }
+    }
+
+    async function searchReport() {
+        const keyword = document.getElementById('searchInput').value.trim();
+        if (!keyword) return loadAllReports();
+        try {
+            const response = await fetch(`/api/search-report/${keyword}`);
+            const result = await response.json();
+            if (result.success) renderReportList(result.data);
+        } catch (error) {
+            alert('搜索失败！');
+        }
+    }
+
+    // ======== 渲染左侧列表 ========
+    function renderReportList(reports) {
+        const successListEl = document.getElementById('successList');
+        const failListEl = document.getElementById('failList');
+        successListEl.innerHTML = ''; failListEl.innerHTML = '';
+
+        if (!reports || reports.length === 0) {
+            successListEl.innerHTML = failListEl.innerHTML = '<div style="text-align:center; color:#666; padding:10px; font-size: 12px;">暂无数据</div>';
+            return;
+        }
+
+        let successCount = 0, failCount = 0;
+
+        reports.forEach(report => {
+            const itemEl = document.createElement('div');
+            itemEl.className = `report-item ${openedReportIds.has(report.id) ? 'active' : ''}`;
+            // 【新增】在列表中展示点赞数
+            itemEl.innerHTML = `
+                <div><strong>${report.studentName || '神秘人'}</strong> (${report.studentId || '无学号'})</div>
+                <div class="info">${report.className || ''} | ${report.submitTime || ''}</div>
+                <div class="like-badge">❤️ ${report.likes || 0}</div>
+            `;
+            itemEl.onclick = () => toggleReportPreview(report.id);
+
+            if (report.result === true) { successListEl.appendChild(itemEl); successCount++; } 
+            else { failListEl.appendChild(itemEl); failCount++; }
+        });
+
+        if (successCount === 0) successListEl.innerHTML = '<div style="text-align:center; color:#666; padding:10px; font-size: 12px;">暂无数据</div>';
+        if (failCount === 0) failListEl.innerHTML = '<div style="text-align:center; color:#666; padding:10px; font-size: 12px;">暂无数据</div>';
+    }
+
+    // ======== 切换与加载预览 ========
+    async function toggleReportPreview(reportId) {
+        if (openedReportIds.has(reportId)) {
+            await closeReportPreview(reportId);
+            return;
+        }
+        try {
+            const response = await fetch(`/api/get-report-by-id/${reportId}`);
+            const result = await response.json();
+            if (result.success) {
+                addReportPreview(result.data);
+                openedReportIds.add(reportId);
+                const currentData = await getCurrentListData();
+                renderReportList(currentData);
+            }
+        } catch (error) { console.error('加载失败'); }
+    }
+
+    async function getCurrentListData() {
+        const keyword = document.getElementById('searchInput').value.trim();
+        const url = keyword ? `/api/search-report/${keyword}` : '/api/get-all-reports';
+        try {
+            const response = await fetch(url);
+            const result = await response.json();
+            return result.success ? result.data : [];
+        } catch (e) { return []; }
+    }
+
+    // ======== 渲染右侧预览卡片 ========
+    function addReportPreview(report) {
+        const previewArea = document.getElementById('previewArea');
+        if (previewArea.querySelector('.empty-tip')) previewArea.innerHTML = '';
+
+        const previewEl = document.createElement('div');
+        previewEl.className = 'report-preview';
+        previewEl.id = `preview-${report.id}`;
+        
+        // 渲染已有的评价
+        const commentHtml = report.comment ? `<div class="teacher-comment" id="comment-display-${report.id}"><strong>老师说：</strong>${report.comment}</div>` : `<div class="teacher-comment" id="comment-display-${report.id}" style="display:none;"></div>`;
+
+        previewEl.innerHTML = `
+            <h3>
+                <span>${report.studentName || '无名'} (${report.studentId})</span>
+                <span style="color:#ff4d4f; font-size: 14px;">❤️ ${report.likes || 0}</span>
+            </h3>
+            <img src="${report.imageData}" alt="实验结果">
+            ${commentHtml}
+            <div class="preview-footer">
+                <button class="btn btn-primary btn-sm" onclick="openCommentModal('${report.id}', '${report.comment || ''}')">💬 点评</button>
+                <div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteReport('${report.id}')" title="删除该报告">🗑️ 删除</button>
+                    <button class="btn btn-warning btn-sm" onclick="closeReportPreview('${report.id}')">❌ 关闭</button>
+                </div>
+            </div>
+        `;
+        previewArea.appendChild(previewEl);
+    }
+
+    async function closeReportPreview(reportId) {
+        const previewEl = document.getElementById(`preview-${reportId}`);
+        if (previewEl) previewEl.remove();
+        openedReportIds.delete(reportId);
+
+        const currentData = await getCurrentListData();
+        renderReportList(currentData);
+
+        if (openedReportIds.size === 0) {
+            document.getElementById('previewArea').innerHTML = '<div class="empty-tip">请选择左侧报告单查看，可多选对比（当前默认每行展示 4 份）</div>';
+        }
+    }
+
+    // ======== 【新增】删除功能 ========
+    async function deleteReport(reportId) {
+        if (!confirm('🚨 确定要永久删除这份实验报告单吗？删除后不可恢复！')) return;
+
+        try {
+            const response = await fetch(`/api/delete-report/${reportId}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.success) {
+                // 如果预览区打开了该报告，则关闭它
+                await closeReportPreview(reportId);
+                // 重新刷新列表
+                loadAllReports(); 
+            } else {
+                alert('删除失败：' + result.message);
+            }
+        } catch (error) {
+            alert('删除出错，请检查网络！');
+        }
+    }
+
+    // ======== 【新增】教师点评功能 ========
+    function openCommentModal(reportId, existingComment) {
+        document.getElementById('currentCommentReportId').value = reportId;
+        // 处理可能包含换行符等特殊字符导致字符串传入断裂的问题，保险起见重新抓取DOM中的值
+        const displayDiv = document.getElementById(`comment-display-${reportId}`);
+        let textToEdit = "";
+        if(displayDiv && displayDiv.style.display !== 'none') {
+            textToEdit = displayDiv.innerText.replace('老师说：', '').trim();
+        }
+        document.getElementById('commentText').value = textToEdit;
+        document.getElementById('commentModal').style.display = 'flex';
+    }
+
+    function closeCommentModal() {
+        document.getElementById('commentModal').style.display = 'none';
+        document.getElementById('commentText').value = '';
+    }
+
+    async function submitComment() {
+        const reportId = document.getElementById('currentCommentReportId').value;
+        const comment = document.getElementById('commentText').value.trim();
+
+        if (!comment) return alert('点评内容不能为空！');
+
+        try {
+            const response = await fetch(`/api/comment-report/${reportId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comment })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                // 更新页面上的点评展示
+                const displayDiv = document.getElementById(`comment-display-${reportId}`);
+                if (displayDiv) {
+                    displayDiv.innerHTML = `<strong>老师说：</strong>${comment}`;
+                    displayDiv.style.display = 'block';
+                }
+                closeCommentModal();
+            } else {
+                alert('保存失败：' + result.message);
+            }
+        } catch (error) {
+            alert('点评失败，请检查网络！');
+        }
+    }
+    </script>
+</body>
+</html>
